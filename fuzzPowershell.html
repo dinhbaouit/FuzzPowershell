@@ -1,0 +1,177 @@
+<script src="https://tio.run/static/379903db189f0b2ae1990edff26ee736-pako.min.js"></script>
+<script>
+function iterate(iterable, monad) {
+    if (!iterable)
+        return;
+    for (var i = 0; i < iterable.length; i++)
+        monad(iterable[i]);
+}
+
+function deflate(byteString) {
+    return pako.deflateRaw(byteStringToByteArray(byteString), {"level": 9});
+}
+
+function inflate(byteString) {
+    return byteArrayToByteString(pako.inflateRaw(byteString));
+}
+
+function sendMessage(title, text) {
+    var message = clone("#templates > .message");
+
+    $("h4", message).textContent = title;
+    $("div", message).textContent = text;
+    $("#messages").appendChild(message);
+}
+
+function resize(textArea) {
+    var dummy = $("#dummy");
+    textArea = this == window ? textArea : this;
+    dummy.style.fontFamily = getComputedStyle(textArea).fontFamily;
+    dummy.style.width = getComputedStyle(textArea).width;
+    dummy.value = textArea.value;
+    textArea.style.height = Math.max(dummy.scrollHeight, textArea.dataset.baseHeight || 27) + "px";
+    dummy.value = "";
+}
+
+function addField(element) {
+    var cla = clone("#templates .array");
+    var textArea = $("textarea", cla);
+    var parent = element.parentNode;
+    parent.parentNode.insertBefore(cla, parent);
+    textArea.onfocus = textArea.oninput = resize;
+    if (!touchDevice)
+        textArea.focus();
+    return cla;
+}
+
+function byteStringToByteArray(byteString) {
+    var byteArray = new Uint8Array(byteString.length);
+    for(var index = 0; index < byteString.length; index++)
+        byteArray[index] = byteString.charCodeAt(index);
+    byteArray.head = 0;
+    return byteArray;
+}
+
+function textToByteString(string) {
+    return unescape(encodeURIComponent(string));
+}
+
+function byteStringToText(byteString) {
+    return decodeURIComponent(escape(byteString));
+}
+
+function runRequestOnReadyState() {
+    if (runRequest.readyState != XMLHttpRequest.DONE)
+        return;
+
+    var response = byteArrayToByteString(new Uint8Array(runRequest.response));
+    var statusCode = runRequest.status;
+    var statusText = runRequest.statusText;
+
+
+  //   if (statusCode == 204) {
+		// document.write("Status 204");
+  //       return;
+  //   }
+
+  //   if (statusCode >= 400) {
+  //   	document.write("Status 400");
+  //       return;
+  //   }
+
+    // try {
+        var rawOutput = inflate(response.slice(10));
+        // document.write("<br>============ rawOutput ==========<br>");
+        // document.write(rawOutput);
+        // document.write("<br>============ ========= ==========<br>");
+
+    // } catch(error) {
+    //     sendMessage("Error", "The server's response could not be decoded.");
+    //     return;
+    // }
+
+    try {
+        response = byteStringToText(rawOutput);
+
+    } catch(error) {
+        response = rawOutput;
+    }
+        if (response.includes("0xd00\nff9"))
+        {
+        	alert("[Found bypass] "+response)
+        }
+        document.write("<br>============ Response ==========<br>"+response+"<br>============ ========= ==========<br>");
+
+
+    if (response.length < 32) {
+        sendMessage("Error", "Could not establish or maintain a connection with the server.");
+    }
+
+    // var results = response.substr(16).split(response.substr(0, 16));
+    // var warnings = results.pop().split("\n");
+    // document.write(response);
+}
+
+function byteArrayToByteString(byteArray) {
+    var retval = "";
+    iterate(byteArray, function(byte) { retval += String.fromCharCode(byte); });
+    return retval;
+}
+
+function byteStringToBase64(byteString) {
+    return btoa(byteString).replace(/\+/g, "@").replace(/=+/, "");
+}
+
+function base64ToByteString(base64String) {
+    return atob(unescape(base64String).replace(/@|-/g, "+").replace(/_/g, "/"))
+}
+
+function pluralization(number, string) {
+    return number + " " + string + (number == 1 ? "" : "s");
+}
+
+function byteStringToTextArea(byteString, textArea) {
+    textArea.value = byteStringToText(byteString);
+    resize(textArea);
+}
+
+// malicious = "\xe2\x80\x99"
+
+// Decode
+// var array = new Uint8Array([226, 130, 172])
+// var decoder = new TextDecoder();
+// var strsss = decoder.decode(array); // String "€"
+
+
+// malicious = "\xe2\x80\x99"
+var blacklist = [0x27,0x2018,0x2019,0x201a,0x201b];
+for (var i=0x0000; i <= 0x0020; i++)
+{
+	if(blacklist.includes(i))
+	{
+		continue;
+	}
+	var hexchar = i.toString(16);
+	eval('var testchar="\\u'+"0".repeat(4-hexchar.length)+hexchar+'"');
+	console.log(testchar);
+	// var testchar = "\u2018";
+	var arr_malicious = new TextEncoder("utf-8").encode(testchar);
+	var ss=""; arr_malicious.forEach(nn => {ss+="\\x"+"0".repeat(2-nn.toString(16).length)+nn.toString(16)});
+	eval('malicious="'+ss+'"');
+
+	command = 'echo \'0xd00'+malicious+';;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;echo "ff9111999999"'+malicious+'\'';
+	len = command.length
+	// document.write("command: "+command);
+	// document.write("length: "+len);
+	pl = 'Vlang\x001\x00powershell\x00F.code.tio\x00'+len+'\x00'+command+'F.input.tio\x000\x00Vargs\x000\x00R';
+
+	runRequest = new XMLHttpRequest;
+	runRequest.open("POST", "https://tio.run/cgi-bin/static/fb67788fd3d1ebf92e66b295525335af-run/a3a0c002682e0175960185efa322f5e3", true);
+	runRequest.responseType = "arraybuffer";
+	// runRequest.onreadystatechange = runRequestOnReadyState;
+	runRequest.send(deflate(pl));
+
+}
+
+
+</script>
